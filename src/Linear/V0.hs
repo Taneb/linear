@@ -29,6 +29,9 @@ import Data.Ix
 import Data.Traversable
 import Data.Semigroup
 import Data.Functor.Bind
+import qualified Data.Vector.Generic as VG
+import qualified Data.Vector.Generic.Mutable as VGM
+import qualified Data.Vector.Unboxed as VU
 #if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 702
 import GHC.Generics (Generic)
 #endif
@@ -153,3 +156,21 @@ instance Storable a => Storable (V0 a) where
   {-# INLINE poke #-}
   peek _ = return V0
   {-# INLINE peek #-}
+
+newtype instance VU.MVector s (V0 a) = MV_V0 Int
+newtype instance VU.Vector    (V0 a) = V_V0 Int
+
+instance VGM.MVector VU.MVector (V0 a) where
+  basicLength (MV_V0 n) = n
+  basicUnsafeSlice _ m (MV_V0 _) = MV_V0 m
+  basicOverlaps _ _ = False
+  basicUnsafeNew i = return (MV_V0 i)
+  basicUnsafeRead _ _ = return V0
+  basicUnsafeWrite _ _ _ = return ()
+
+instance VG.Vector VU.Vector (V0 a) where
+  basicUnsafeFreeze (MV_V0 i) = return (V_V0 i)
+  basicUnsafeThaw (V_V0 i) = return (MV_V0 i)
+  basicLength (V_V0 i) = i
+  basicUnsafeSlice _ m _ = V_V0 m
+  basicUnsafeIndexM _ _ = return V0
