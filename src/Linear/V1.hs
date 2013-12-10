@@ -2,7 +2,9 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -28,6 +30,7 @@ module Linear.V1
   ) where
 
 import Control.Applicative
+import Control.Monad (liftM)
 import Data.Data
 import Data.Distributive
 import Data.Foldable
@@ -36,6 +39,9 @@ import Data.Traversable
 import Data.Semigroup.Foldable
 import Data.Semigroup.Traversable
 import Data.Functor.Bind
+import qualified Data.Vector.Generic as VG
+import qualified Data.Vector.Generic.Mutable as VGM
+import qualified Data.Vector.Unboxed as VU
 import Foreign.Storable (Storable)
 import GHC.Arr (Ix(..))
 #if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 702
@@ -186,3 +192,23 @@ instance Ix a => Ix (V1 a) where
 
   inRange (V1 l1,V1 u1) (V1 i1) = inRange (l1,u1) i1
   {-# INLINE inRange #-}
+
+newtype instance VU.MVector s (V1 a) = MV_V1 (VU.MVector s a)
+newtype instance VU.Vector    (V1 a) = V_V1  (VU.Vector a)
+
+instance VGM.MVector VU.MVector a => VGM.MVector VU.MVector (V1 a) where
+  basicLength (MV_V1 a) = VGM.basicLength a
+  basicUnsafeSlice i j (MV_V1 v) = MV_V1 $ VGM.basicUnsafeSlice i j v
+  basicOverlaps (MV_V1 v1) (MV_V1 v2) = VGM.basicOverlaps v1 v2
+  basicUnsafeNew i = MV_V1 `liftM` VGM.basicUnsafeNew i
+  basicUnsafeRead (MV_V1 v1) i = V1 `liftM` VGM.basicUnsafeRead v1 i
+  basicUnsafeWrite (MV_V1 v1) i (V1 a) = VGM.basicUnsafeWrite v1 i a
+
+instance VG.Vector VU.Vector a => VG.Vector VU.Vector (V1 a) where
+  basicUnsafeFreeze (MV_V1 v) = V_V1 `liftM` VG.basicUnsafeFreeze v
+  basicUnsafeThaw (V_V1 v) = MV_V1 `liftM` VG.basicUnsafeThaw v
+  basicLength (V_V1 v) = VG.basicLength v
+  basicUnsafeSlice i j (V_V1 v) = V_V1 $ VG.basicUnsafeSlice i j v
+  basicUnsafeIndexM (V_V1 v) i = V1 `liftM` VG.basicUnsafeIndexM v i
+  
+instance VU.Unbox a => VU.Unbox (V1 a)
